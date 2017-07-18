@@ -119,7 +119,7 @@ impl Cypher {
     /// Parameter can be anything that implements `Into<Statement>`, `Into<String>` or `Statement`
     /// itself
     pub fn exec_stream<S: Into<Statement>, F>(&self, stream_path: &str, statement: S, on: F)
-        where F: Fn(Value)  {
+        where F: FnMut(Value)  {
         self.query()
             .with_statement(statement)
             .send_stream(stream_path, on);
@@ -184,8 +184,8 @@ impl<'a> CypherQuery<'a> {
     ///
     /// The statements contained in the query are sent to the server and the results are streamed
     /// back through the `on` parameter.
-    pub fn send_stream<F>(self, stream_path: &str, on: F)
-      where F: Fn(Value) {
+    pub fn send_stream<F>(self, stream_path: &str, mut on: F)
+      where F: FnMut(Value) {
         let mut res = send_query(self.cypher.client(),
                    &self.cypher.endpoint_commit(),
                    self.cypher.headers(),

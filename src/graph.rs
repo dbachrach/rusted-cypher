@@ -172,7 +172,7 @@ impl GraphClient {
     /// Parameter can be anything that implements `Into<Statement>`, `Into<String>` or `Statement`
     /// itself
     pub fn exec_stream<S: Into<Statement>, F>(&self, stream_path: &str, statement: S, on: F)
-        where F: Fn(Value)  {
+        where F: FnMut(Value)  {
         self.cypher.exec_stream(stream_path, statement, on);
     }
 
