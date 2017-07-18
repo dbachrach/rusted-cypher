@@ -138,6 +138,10 @@ extern crate quick_error;
 #[macro_use]
 extern crate log;
 
+extern crate itertools;
+
+extern crate regex;
+
 pub mod cypher;
 pub mod graph;
 pub mod error;

@@ -167,6 +167,15 @@ impl GraphClient {
         self.cypher.exec(statement)
     }
 
+    /// Executes the given `Statement` and parses data as a stream
+    ///
+    /// Parameter can be anything that implements `Into<Statement>`, `Into<String>` or `Statement`
+    /// itself
+    pub fn exec_stream<S: Into<Statement>, F>(&self, stream_path: &str, statement: S, on: F)
+        where F: Fn(Value)  {
+        self.cypher.exec_stream(stream_path, statement, on);
+    }
+
     /// Creates a new `Transaction`
     pub fn transaction(&self) -> Transaction<TransactionCreated> {
         self.cypher.transaction()

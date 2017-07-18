@@ -3,10 +3,12 @@
 pub mod transaction;
 pub mod statement;
 pub mod result;
+pub mod parser;
 
 pub use self::statement::Statement;
 pub use self::transaction::Transaction;
 pub use self::result::CypherResult;
+pub use self::parser::{Parser,JsonEvent};
 
 use std::collections::BTreeMap;
 
@@ -21,6 +23,9 @@ use serde_json::value as json_value;
 
 use self::result::{QueryResult, ResultTrait};
 use ::error::GraphError;
+
+use regex::Regex;
+use std::io::Read;
 
 fn send_query(client: &Client, endpoint: &str, headers: &Headers, statements: Vec<Statement>)
     -> Result<Response, GraphError> {
@@ -109,6 +114,17 @@ impl Cypher {
             .ok_or(GraphError::Other("No results returned from server".to_owned()))
     }
 
+    /// Executes the given `Statement` and parses data as a stream
+    ///
+    /// Parameter can be anything that implements `Into<Statement>`, `Into<String>` or `Statement`
+    /// itself
+    pub fn exec_stream<S: Into<Statement>, F>(&self, stream_path: &str, statement: S, on: F)
+        where F: Fn(Value)  {
+        self.query()
+            .with_statement(statement)
+            .send_stream(stream_path, on);
+    }
+
     /// Creates a new `Transaction`
     pub fn transaction(&self) -> Transaction<self::transaction::Created> {
         Transaction::new(&self.endpoint.to_string(), &self.headers)
@@ -162,6 +178,41 @@ impl<'a> CypherQuery<'a> {
         }
 
         Ok(result.results)
+    }
+
+    /// Sends the query to the server and parses as a stream
+    ///
+    /// The statements contained in the query are sent to the server and the results are streamed
+    /// back through the `on` parameter.
+    pub fn send_stream<F>(self, stream_path: &str, on: F)
+      where F: Fn(Value) {
+        let mut res = send_query(self.cypher.client(),
+                   &self.cypher.endpoint_commit(),
+                   self.cypher.headers(),
+                   self.statements).unwrap();
+
+        let mut buffer = String::new();
+        res.read_to_string(&mut buffer).unwrap();
+
+        let mut parser = Parser::new(buffer.chars());
+
+        let re = Regex::new(stream_path).unwrap();
+
+        while let Some(json_event) = parser.next() {
+            if re.is_match(&parser.stack().description()) {
+                match json_event {
+                    JsonEvent::ArrayStart => {
+                        parser.start_storing_buffer('[');
+                    },
+                    JsonEvent::ArrayEnd => {
+                        let stored_buffer = parser.get_stored_buffer();
+                        let parsed_buffer: Value = serde_json::from_str(&stored_buffer).unwrap();
+                        on(parsed_buffer);
+                    },
+                    _ => {},
+                }
+            }
+        }
     }
 }
 
